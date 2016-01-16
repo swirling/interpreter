@@ -21,7 +21,7 @@ data LispVal = Atom String
     |String String
     |Bool Bool
     |Character Char
-    
+
 escapeChars :: Parser Char
 escapeChars =do char '\\'
                 x <- oneOf "\\\"nrt"
@@ -53,13 +53,13 @@ parseBool = do
 
 parseCharacter :: Parser LispVal
 parseCharacter = do
-	try $ string "#\\"
-	value <- try (string "newline" <|> string "space")
-		<|> do { x<-anyChar; notFollowedBy alphaNum; return [x]}
-	return $ Character $ case value of
-		"space" -> ' '
-		"newline" -> '\n'
-		otherwise -> (value !! 0)
+    try $ string "#\\"
+    value <- try (string "newline" <|> string "space")
+        <|> do { x<-anyChar; notFollowedBy alphaNum; return [x]}
+    return $ Character $ case value of
+        "space" -> ' '
+        "newline" -> '\n'
+        otherwise -> (value !! 0)
 
 parseNumber :: Parser LispVal
 parseNumber = parseDecimal1 <|> parseDecimal2 <|> parseHex <|> parseOct <|> parseBin
