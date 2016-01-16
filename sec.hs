@@ -2,6 +2,8 @@ module Main where
 import System.Environment
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Control.Monad
+import Data.Ratio
+import Data.Complex
 import Numeric
 -- one of the symbols allowed in scheme identifier
 symbol :: Parser Char
@@ -21,7 +23,9 @@ data LispVal = Atom String
     |String String
     |Bool Bool
     |Character Char
-
+    |Float Double
+    |Ratio Rational
+    |Complex (Complex Double)
 escapeChars :: Parser Char
 escapeChars =do char '\\'
                 x <- oneOf "\\\"nrt"
@@ -93,12 +97,39 @@ bin2dig' digint "" = digint
 bin2dig' digint (x:xs) = let old = 2 * digint + (if x == '0' then 0 else 1) in
                          bin2dig' old xs
 
+parseFloat :: Parser LispVal
+parseFloat = do x <- many1 digit
+                char '.'
+                y <- many1 digit
+                return $ Float (fst.head $ readFloat (x++"."++y))
+
+parseRatio :: Parser LispVal
+parseRatio = do x<- many1 digit
+                char '/'
+                y <- many1 digit
+                return $ Ratio ((read x) % (read y))
+toDouble :: LispVal -> Double
+toDouble(Float f) = realToFrac f
+toDouble(Number n)= fromIntegral n
+
+parseComplex :: Parser LispVal
+parseComplex = do
+            x <- (try parseFloat <|> parseNumber)
+            char '+'
+            y <- (try parseFloat <|> parseNumber)
+            char 'i'
+            return $ Complex (toDouble x :+ toDouble y)
+
 parseExpr :: Parser LispVal
 parseExpr =  parseAtom
             <|> parseString
             <|> try parseBool
+            <|> try parseComplex
+            <|> try parseFloat
+            <|> try parseRatio
             <|> try parseNumber
             <|> try parseCharacter
+
 
 
 readExpr :: String -> String
