@@ -4,8 +4,9 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 import Control.Monad
 import Data.Ratio
 import Data.Complex
+import Data.Array
 import Numeric
--- one of the symbols allowed in scheme identifier
+-- one of the symbols allowed `in scheme identifier
 symbol :: Parser Char
 symbol = oneOf "!$%&|*+-/:<=>?@^_~"
 
@@ -16,7 +17,8 @@ spaces = skipMany1 space
 --readExpr input = case parse (spaces >> symbol) "lisp" input of
 --    Left err-> "Not match: "++ show err
 --    Right val -> "matched "
-data LispVal = Atom String
+data LispVal = Nil
+    |Atom String
     |List [LispVal]
     |DottedList [LispVal] LispVal
     |Number Integer
@@ -26,6 +28,8 @@ data LispVal = Atom String
     |Float Double
     |Ratio Rational
     |Complex (Complex Double)
+    |Vector (Array Int LispVal)
+
 escapeChars :: Parser Char
 escapeChars =do char '\\'
                 x <- oneOf "\\\"nrt"
@@ -120,6 +124,47 @@ parseComplex = do
             char 'i'
             return $ Complex (toDouble x :+ toDouble y)
 
+--parseList :: Parser LispVal
+--parseList = liftM List $ sepBy parseExpr spaces
+
+parseDottedList :: Parser LispVal
+parseDottedList = do
+    head <- endBy parseExpr spaces
+    tail <- char '.' >> spaces >> parseExpr
+    return $ DottedList head tail
+
+parseList :: Parser LispVal
+parseList = between beg end parseList1
+           where beg = (char '(' >> skipMany space)
+                 end = (skipMany space >> char ')')
+parseList1 :: Parser LispVal
+parseList1 = do list <- sepEndBy parseExpr spaces
+                datum <- option Nil (char '.' >> spaces >> parseExpr)
+                return $ case datum of
+                    Nil -> List list
+                    val  -> DottedList list val
+
+parseQuoted :: Parser LispVal
+parseQuoted = do
+    char '\''
+    x <- parseExpr
+    return $ List [Atom "quote", x]
+
+parseBackQuote :: Parser LispVal
+parseBackQuote = do
+    char '`'
+    x <- parseExpr
+    return $ List [Atom "quasiquote", x]
+
+parseUnQuote :: Parser LispVal
+parseUnQuote = do
+    char ','
+    x <- parseExpr
+    return $ List [Atom "unquote", x]
+
+parseVector :: Parser LispVal
+parseVector = do arrayValues <- sepBy parseExpr spaces;return $ Vector (listArray (0, (length arrayValues - 1)) arrayValues)
+
 parseExpr :: Parser LispVal
 parseExpr =  parseAtom
             <|> parseString
@@ -129,13 +174,17 @@ parseExpr =  parseAtom
             <|> try parseRatio
             <|> try parseNumber
             <|> try parseCharacter
-
-
+            <|> parseQuoted
+            <|> parseBackQuote
+            <|> parseUnQuote
+            <|> try parseList
+            <|> do{string "#("; x<-try parseVector; char ')'; return x}
 
 readExpr :: String -> String
 readExpr input = case parse parseExpr "lisp" input of
     Left err-> "Not match: "++ show err
-    Right val -> "matched "
+    Right val -> "founded "
+
 
 main :: IO ()
 main = do
